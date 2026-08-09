@@ -96,6 +96,10 @@
   transition: background .18s ease, color .18s ease, box-shadow .18s ease;
 }
 
+@media (max-width: 639px) {
+  .nav-tab { flex: 1; justify-content: center; min-width: 0; }
+}
+
 .nav-tab:hover { color: #166534; }
 .nav-active { background: white; color: #166534; box-shadow: 0 2px 8px rgba(44, 67, 50, .1); }
 
@@ -332,8 +336,12 @@
 }
 
 @media (max-width: 520px) {
-  .nav-tab { padding: 8px 11px; }
-  .city-toolbar { padding: 16px; }
+  .nav-tab { padding: 8px 10px; }
+  .account-button { padding: 8px 10px; }
+  .stat-card { overflow: hidden; padding: 11px 12px; }
+  .stat-card b { display: block; overflow-wrap: anywhere; font-size: 13px; }
+  .city-toolbar { align-items: stretch; flex-direction: column; padding: 16px; }
+  .city-toolbar > div:last-child { align-self: flex-end; }
   .city-canvas { min-height: 620px; padding: 28px 14px; }
   .city-grid { gap: 30px 16px; }
   .city-lot { min-height: 125px; }
@@ -350,4 +358,5 @@
   .stock-icon { width: 42px; height: 42px; }
   .stock-price { text-align: right; }
   .stock-position { grid-column: 1 / -1; border-top: 1px dashed #e7e2eb; padding-top: 9px; }
+  .stock-actions { grid-template-columns: minmax(52px, .7fr) 1fr 1fr; }
 }

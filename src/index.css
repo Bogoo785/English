@@ -10,7 +10,7 @@
 }
 
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
-body { margin: 0; min-width: 320px; min-height: 100vh; }
+html { overflow-x: hidden; scroll-behavior: smooth; }
+body { margin: 0; min-width: 320px; min-height: 100vh; overflow-x: hidden; }
 button { font: inherit; }
 .font-serif { font-family: Georgia, "Times New Roman", "Noto Serif TC", serif; }

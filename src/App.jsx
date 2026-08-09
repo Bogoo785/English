@@ -449,19 +449,19 @@ function App() {
   return (
     <div className="min-h-screen bg-[#f7f5ee] text-slate-800">
       <header className="sticky top-0 z-30 border-b border-[#e4dfd2] bg-[#fffdf8]/95 backdrop-blur">
-        <div className="mx-auto flex min-h-18 max-w-7xl items-center justify-between gap-4 px-5 sm:px-8">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-2 sm:min-h-18 sm:flex-nowrap sm:gap-4 sm:px-8 sm:py-0">
           <button onClick={() => setPage('learn')} className="flex items-center gap-3 text-left">
             <span className="grid size-10 place-items-center rounded-xl bg-emerald-700 text-xl font-black text-white shadow-sm">A</span>
             <span className="hidden sm:block"><b className="block font-serif text-xl leading-none text-emerald-950">Wordshire</b><small className="mt-1 block text-[9px] font-black uppercase tracking-[.2em] text-emerald-700">Learn · Build · Grow</small></span>
           </button>
 
-          <nav className="flex rounded-xl bg-slate-100 p-1" aria-label="主要頁面">
+          <nav className="order-3 flex w-full rounded-xl bg-slate-100 p-1 sm:order-none sm:w-auto" aria-label="主要頁面">
             <button onClick={() => setPage('learn')} className={`nav-tab ${page === 'learn' ? 'nav-active' : ''}`}><span>📖</span><span className="hidden sm:inline">英文冒險</span></button>
             <button onClick={() => setPage('city')} className={`nav-tab ${page === 'city' ? 'nav-active' : ''}`}><span>🏘️</span><span className="hidden sm:inline">我的城市</span></button>
             <button onClick={() => setPage('stocks')} className={`nav-tab ${page === 'stocks' ? 'nav-active' : ''}`}><span>📈</span><span className="hidden sm:inline">模擬股市</span></button>
           </nav>
 
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <button onClick={() => setAuthOpen(true)} className={`account-button ${authUser ? 'account-online' : ''}`} title={authUser?.email ?? '登入以同步進度'}>
               <span>{authUser ? '☁️' : '👤'}</span>
               <span className="hidden lg:inline">{authUser ? '已同步' : '登入'}</span>
@@ -524,7 +524,7 @@ function LearnPage({ game, question, selected, isCorrect, progress, onAnswer, on
   const visibleLevels = Array.from({ length: 9 }, (_, index) => firstVisibleLevel + index)
   const reward = getPartReward(game.activeLevel)
   return (
-    <main className="mx-auto max-w-6xl px-5 py-8 sm:px-8 lg:py-12">
+    <main className="mx-auto max-w-6xl px-4 py-6 sm:px-8 sm:py-8 lg:py-12">
       <div className="mb-8">
         <div className="mb-2 text-xs font-black uppercase tracking-[.2em] text-emerald-700">English Adventure · Level {game.activeLevel} / 999</div>
         <h1 className="font-serif text-4xl font-bold text-slate-900 sm:text-5xl">單字冒險之路</h1>
@@ -607,10 +607,10 @@ function CityPage({ game, incomePerHour, pendingExact, pendingCoins, onBuild, on
   }).filter((type) => type.count > 0)
 
   return (
-    <main className="mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:py-10">
+    <main className="mx-auto max-w-7xl px-4 py-6 sm:px-8 sm:py-8 lg:py-10">
       <section className="mb-7 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
         <div><div className="mb-2 text-xs font-black uppercase tracking-[.2em] text-emerald-700">My Town · Workshop</div><h1 className="font-serif text-4xl font-bold text-slate-900 sm:text-5xl">我的綠野小鎮</h1><p className="mt-3 text-slate-500">用闖關獲得的配件組裝建築，再把城市收益帶到模擬股市投資。</p></div>
-        <div className="flex gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <div className="stat-card"><small>城市產值</small><b>🪙 {incomePerHour}/小時</b></div>
           <div className="stat-card"><small>建築總數</small><b>🏠 {game.buildings.length}</b></div>
         </div>
@@ -680,10 +680,10 @@ function StockPage({ game, onTrade, onGoCity }) {
   }
 
   return (
-    <main className="mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:py-10">
+    <main className="mx-auto max-w-7xl px-4 py-6 sm:px-8 sm:py-8 lg:py-10">
       <section className="mb-7 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
         <div><div className="mb-2 text-xs font-black uppercase tracking-[.2em] text-violet-700">Paper Market · 10 秒更新</div><h1 className="font-serif text-4xl font-bold text-slate-900 sm:text-5xl">Wordshire 模擬股市</h1><p className="mt-3 text-slate-500">用城市賺到的遊戲金幣練習買進、賣出與觀察損益。</p></div>
-        <div className="flex gap-3"><div className="stat-card"><small>可用金幣</small><b>🪙 {money(game.coins)}</b></div><div className="stat-card"><small>持股市值</small><b>📊 {money(portfolioValue)}</b></div></div>
+        <div className="grid grid-cols-2 gap-3"><div className="stat-card"><small>可用金幣</small><b>🪙 {money(game.coins)}</b></div><div className="stat-card"><small>持股市值</small><b>📊 {money(portfolioValue)}</b></div></div>
       </section>
 
       <div className="mb-7 grid gap-4 sm:grid-cols-3">
@@ -693,7 +693,7 @@ function StockPage({ game, onTrade, onGoCity }) {
       </div>
 
       <section className="rounded-[30px] border border-[#ded9e7] bg-white p-5 shadow-[0_16px_50px_rgba(45,40,70,.08)] sm:p-7">
-        <div className="mb-5 flex items-center justify-between"><div><h2 className="font-serif text-2xl font-bold">模擬市場</h2><p className="mt-1 text-xs text-slate-500">價格每 10 秒隨機漲跌，可能形成連續上漲或下跌走勢</p></div><span className="rounded-full bg-violet-50 px-3 py-1.5 text-xs font-black text-violet-700">MARKET OPEN</span></div>
+        <div className="mb-5 flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><h2 className="font-serif text-2xl font-bold">模擬市場</h2><p className="mt-1 text-xs text-slate-500">價格每 10 秒隨機漲跌，可能形成連續上漲或下跌走勢</p></div><span className="shrink-0 rounded-full bg-violet-50 px-3 py-1.5 text-xs font-black text-violet-700">MARKET OPEN</span></div>
         <div className="market-table">
           {market.map((stock) => {
             const position = game.portfolio[stock.symbol] || { shares: 0, averageCost: 0 }
