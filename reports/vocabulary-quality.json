@@ -1,0 +1,27 @@
+{
+  "generatedAt": "2026-08-09T02:15:43.544Z",
+  "source": "https://huggingface.co/datasets/kknono668/toeic-vocab-tw/resolve/main/data/toeic_vocabulary.json",
+  "sourceRows": 11238,
+  "strictCandidates": 2479,
+  "outputRows": 2000,
+  "uniqueWords": 2000,
+  "uniqueMeanings": 2000,
+  "levels": {
+    "A1": 500,
+    "A2": 700,
+    "B1": 800
+  },
+  "scoreRanges": {
+    "0-400": 284,
+    "400-600": 674,
+    "600-780": 726,
+    "780-900": 316
+  },
+  "checks": {
+    "allSingleWordNouns": true,
+    "pluralFormsRemoved": true,
+    "properNamePatternsRemoved": true,
+    "duplicateAnswersRemoved": true,
+    "sensitiveBlocklistApplied": true
+  }
+}
