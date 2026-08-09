@@ -21,6 +21,8 @@ const stocks = [
 ]
 
 const rewardCycle = buildingTypes.flatMap((building) => Array(building.partsRequired).fill(building.type))
+const SKIP_CHALLENGE_LEVEL = 10
+const SKIP_CHALLENGE_QUESTIONS = 20
 
 function getPartReward(level) {
   const type = rewardCycle[(level - 1) % rewardCycle.length]
@@ -114,6 +116,7 @@ function App() {
   const [page, setPage] = useState('learn')
   const [game, setGame] = useState(loadGame)
   const [selected, setSelected] = useState(null)
+  const [skipChallenge, setSkipChallenge] = useState({ status: 'idle', questionIndex: 0, correct: 0 })
   const [quizQuestions, setQuizQuestions] = useState(() => {
     const saved = loadGame()
     return createLevelQuiz(saved.activeLevel, 10)
@@ -181,6 +184,7 @@ function App() {
         const restored = normalizeGame(data.game_state)
         setGame(restored)
         setQuizQuestions(createLevelQuiz(restored.activeLevel, 10))
+        setSkipChallenge({ status: 'idle', questionIndex: 0, correct: 0 })
         setSelected(null)
         setLastSynced(data.updated_at ? new Date(data.updated_at) : new Date())
       } else {
@@ -281,7 +285,41 @@ function App() {
   }
 
   function nextQuestion() {
-    const current = quizQuestions[game.questionIndex]
+    const challengeActive = skipChallenge.status === 'active'
+    const questionIndex = challengeActive ? skipChallenge.questionIndex : game.questionIndex
+    const current = quizQuestions[questionIndex]
+
+    if (challengeActive) {
+      if (selected !== current.answer) {
+        setSkipChallenge((value) => ({ ...value, status: 'failed' }))
+        setSelected(null)
+        return
+      }
+
+      if (questionIndex === SKIP_CHALLENGE_QUESTIONS - 1) {
+        setGame((value) => ({
+          ...value,
+          activeLevel: SKIP_CHALLENGE_LEVEL,
+          unlockedLevel: Math.max(value.unlockedLevel, SKIP_CHALLENGE_LEVEL),
+          correct: 0,
+          questionIndex: 0,
+          lessonCompleted: false,
+        }))
+        setSkipChallenge({ status: 'passed', questionIndex, correct: SKIP_CHALLENGE_QUESTIONS })
+        setSelected(null)
+        notify(`完美答對 ${SKIP_CHALLENGE_QUESTIONS} 題，Level ${SKIP_CHALLENGE_LEVEL} 已解鎖！`)
+        return
+      }
+
+      setSkipChallenge((value) => ({
+        ...value,
+        correct: value.correct + 1,
+        questionIndex: value.questionIndex + 1,
+      }))
+      setSelected(null)
+      return
+    }
+
     if (selected !== current.answer) {
       setSelected(null)
       return
@@ -313,6 +351,7 @@ function App() {
   }
 
   function restartLesson() {
+    setSkipChallenge({ status: 'idle', questionIndex: 0, correct: 0 })
     setGame((value) => ({ ...value, correct: 0, questionIndex: 0, lessonCompleted: false }))
     setQuizQuestions(createLevelQuiz(game.activeLevel, 10))
     setSelected(null)
@@ -324,6 +363,7 @@ function App() {
       notify(`先完成 Level ${game.unlockedLevel} 才能繼續前進。`)
       return
     }
+    setSkipChallenge({ status: 'idle', questionIndex: 0, correct: 0 })
     setGame((value) => ({ ...value, activeLevel: safeLevel, correct: 0, questionIndex: 0, lessonCompleted: false }))
     setQuizQuestions(createLevelQuiz(safeLevel, 10))
     setSelected(null)
@@ -335,6 +375,23 @@ function App() {
       return
     }
     selectLevel(game.activeLevel + 1)
+  }
+
+  function startSkipChallenge() {
+    if (game.unlockedLevel >= SKIP_CHALLENGE_LEVEL) {
+      notify(`你已經解鎖 Level ${SKIP_CHALLENGE_LEVEL}。`)
+      return
+    }
+    setGame((value) => ({ ...value, correct: 0, questionIndex: 0, lessonCompleted: false }))
+    setSkipChallenge({ status: 'active', questionIndex: 0, correct: 0 })
+    setQuizQuestions(createLevelQuiz(SKIP_CHALLENGE_LEVEL, SKIP_CHALLENGE_QUESTIONS))
+    setSelected(null)
+  }
+
+  function enterSkippedLevel() {
+    setSkipChallenge({ status: 'idle', questionIndex: 0, correct: 0 })
+    setQuizQuestions(createLevelQuiz(SKIP_CHALLENGE_LEVEL, 10))
+    setSelected(null)
   }
 
   function build(type) {
@@ -442,9 +499,11 @@ function App() {
     }
   }
 
-  const currentQuestion = quizQuestions[game.questionIndex]
+  const currentQuestion = quizQuestions[skipChallenge.status === 'active' ? skipChallenge.questionIndex : game.questionIndex]
   const isCorrect = selected === currentQuestion.answer
-  const progress = game.lessonCompleted ? 100 : game.correct * 10
+  const progress = skipChallenge.status === 'active'
+    ? skipChallenge.correct / SKIP_CHALLENGE_QUESTIONS * 100
+    : game.lessonCompleted ? 100 : game.correct * 10
 
   return (
     <div className="min-h-screen bg-[#f7f5ee] text-slate-800">
@@ -486,6 +545,9 @@ function App() {
           onAnswer={answer}
           onNext={nextQuestion}
           onRestart={restartLesson}
+          skipChallenge={skipChallenge}
+          onStartSkipChallenge={startSkipChallenge}
+          onEnterSkippedLevel={enterSkippedLevel}
           onGoCity={() => setPage('city')}
         />
       ) : page === 'city' ? (
@@ -519,10 +581,11 @@ function App() {
   )
 }
 
-function LearnPage({ game, question, selected, isCorrect, progress, onAnswer, onNext, onRestart, onGoCity, onSelectLevel, onNextLevel }) {
+function LearnPage({ game, question, selected, isCorrect, progress, onAnswer, onNext, onRestart, onGoCity, onSelectLevel, onNextLevel, skipChallenge, onStartSkipChallenge, onEnterSkippedLevel }) {
   const firstVisibleLevel = Math.max(1, Math.min(991, game.activeLevel - 4))
   const visibleLevels = Array.from({ length: 9 }, (_, index) => firstVisibleLevel + index)
   const reward = getPartReward(game.activeLevel)
+  const challengeActive = skipChallenge.status === 'active'
   return (
     <main className="mx-auto max-w-6xl px-4 py-6 sm:px-8 sm:py-8 lg:py-12">
       <div className="mb-8">
@@ -545,7 +608,27 @@ function LearnPage({ game, question, selected, isCorrect, progress, onAnswer, on
 
       <div className="grid gap-7 lg:grid-cols-[1fr_310px]">
         <section className="rounded-[28px] border border-[#e3ded1] bg-[#fffdf8] p-6 shadow-[0_16px_50px_rgba(45,62,47,.08)] sm:p-10">
-          {game.lessonCompleted ? (
+          {skipChallenge.status === 'passed' ? (
+            <div className="grid min-h-[440px] place-items-center text-center">
+              <div>
+                <div className="mx-auto grid size-28 place-items-center rounded-full bg-violet-100 text-6xl shadow-inner">🚀</div>
+                <div className="mt-6 text-xs font-black uppercase tracking-[.2em] text-violet-700">20 / 20 Perfect</div>
+                <h2 className="mt-2 font-serif text-4xl font-bold text-slate-900">跳級成功！</h2>
+                <p className="mx-auto mt-3 max-w-md text-slate-500">你一次答對全部 20 題，已直接解鎖 Level {SKIP_CHALLENGE_LEVEL}。</p>
+                <button onClick={onEnterSkippedLevel} className="mt-7 rounded-xl bg-violet-700 px-6 py-3 font-extrabold text-white hover:bg-violet-800">前往 Level {SKIP_CHALLENGE_LEVEL}</button>
+              </div>
+            </div>
+          ) : skipChallenge.status === 'failed' ? (
+            <div className="grid min-h-[440px] place-items-center text-center">
+              <div>
+                <div className="mx-auto grid size-28 place-items-center rounded-full bg-rose-100 text-6xl shadow-inner">🎯</div>
+                <div className="mt-6 text-xs font-black uppercase tracking-[.2em] text-rose-700">Skip Challenge</div>
+                <h2 className="mt-2 font-serif text-4xl font-bold text-slate-900">差一點就成功了</h2>
+                <p className="mx-auto mt-3 max-w-md text-slate-500">跳級需要 20 題全部一次答對。準備好後可以立刻重新挑戰。</p>
+                <button onClick={onStartSkipChallenge} className="mt-7 rounded-xl bg-violet-700 px-6 py-3 font-extrabold text-white hover:bg-violet-800">重新挑戰 20 題</button>
+              </div>
+            </div>
+          ) : game.lessonCompleted ? (
             <div className="grid min-h-[440px] place-items-center text-center">
               <div>
                 <div className="mx-auto grid size-28 place-items-center rounded-full bg-amber-100 text-6xl shadow-inner">🏆</div>
@@ -563,9 +646,9 @@ function LearnPage({ game, question, selected, isCorrect, progress, onAnswer, on
             <>
               <div className="mb-8 flex items-center gap-4">
                 <div className="h-3 flex-1 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-emerald-600 transition-all duration-500" style={{ width: `${progress}%` }} /></div>
-                <b className="text-sm text-emerald-700">{game.correct}/10</b>
+                <b className="text-sm text-emerald-700">{challengeActive ? skipChallenge.correct : game.correct}/{challengeActive ? SKIP_CHALLENGE_QUESTIONS : 10}</b>
               </div>
-              <div className="mb-2 flex items-center justify-between text-xs font-extrabold uppercase tracking-[.16em] text-slate-400"><span>Level {game.activeLevel} · {game.questionIndex + 1}/10</span><span>難度 #{question.rank} · {question.level}</span></div>
+              <div className="mb-2 flex items-center justify-between text-xs font-extrabold uppercase tracking-[.16em] text-slate-400"><span>{challengeActive ? `跳級挑戰 · ${skipChallenge.questionIndex + 1}/${SKIP_CHALLENGE_QUESTIONS}` : `Level ${game.activeLevel} · ${game.questionIndex + 1}/10`}</span><span>難度 #{question.rank} · {question.level}</span></div>
               <h2 className="mb-8 min-h-20 font-serif text-3xl font-bold leading-snug text-slate-900 sm:text-4xl">{question.prompt}</h2>
               <div className="grid gap-3">
                 {question.choices.map((choice, index) => {
@@ -578,15 +661,21 @@ function LearnPage({ game, question, selected, isCorrect, progress, onAnswer, on
                   )
                 })}
               </div>
-              {selected && <div className={`mt-5 rounded-2xl p-4 text-sm ${isCorrect ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-700'}`}><b>{isCorrect ? '答對了！' : '再想一下！'}</b> {question.note}</div>}
+              {selected && <div className={`mt-5 rounded-2xl p-4 text-sm ${isCorrect ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-700'}`}><b>{isCorrect ? '答對了！' : challengeActive ? '這次挑戰未達成。' : '再想一下！'}</b> {question.note}</div>}
               <button disabled={!selected} onClick={onNext} className="mt-6 w-full rounded-xl bg-emerald-700 py-3.5 font-extrabold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400">
-                {!selected ? '選擇一個答案' : isCorrect ? (game.questionIndex === 9 ? `完成 Level ${game.activeLevel} 並領取建築配件` : '下一題') : '再試一次'}
+                {!selected ? '選擇一個答案' : isCorrect ? (challengeActive ? (skipChallenge.questionIndex === SKIP_CHALLENGE_QUESTIONS - 1 ? '完成挑戰並解鎖 Level 10' : '下一題') : game.questionIndex === 9 ? `完成 Level ${game.activeLevel} 並領取建築配件` : '下一題') : challengeActive ? '查看挑戰結果' : '再試一次'}
               </button>
             </>
           )}
         </section>
 
         <aside className="space-y-5">
+          {game.unlockedLevel < SKIP_CHALLENGE_LEVEL && (
+            <div className="rounded-3xl border border-violet-200 bg-violet-50 p-6">
+              <span className="text-4xl">🚀</span><div className="mt-4 text-xs font-black uppercase tracking-wider text-violet-700">Level Skip Challenge</div><div className="mt-1 text-xl font-black text-violet-950">20 題完美跳級</div><p className="mt-2 text-sm text-violet-800/70">20 題全部一次答對，直接解鎖 Level {SKIP_CHALLENGE_LEVEL}。答錯任何一題就需重新挑戰。</p>
+              {!challengeActive && <button onClick={onStartSkipChallenge} className="mt-4 w-full rounded-xl bg-violet-700 px-4 py-3 text-sm font-extrabold text-white hover:bg-violet-800">開始跳級挑戰</button>}
+            </div>
+          )}
           <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6">
             <span className="text-4xl">{reward.partEmoji}</span><div className="mt-4 text-xs font-black uppercase tracking-wider text-amber-700">Level {game.activeLevel} 完成獎勵</div><div className="mt-1 text-xl font-black text-amber-900">{reward.name}配件 ×1</div><p className="mt-2 text-sm text-amber-800/70">集滿 {reward.partsRequired} 個配件，即可在城市工坊組裝一棟{reward.name}。</p>
           </div>
