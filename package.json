@@ -8,7 +8,8 @@
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "generate:vocabulary": "node scripts/generate-vocabulary.mjs"
+    "generate:vocabulary": "node scripts/generate-vocabulary.mjs",
+    "generate:japanese": "node scripts/generate-japanese-vocabulary.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.2",
@@ -21,6 +22,7 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
+    "opencc-js": "^1.4.1",
     "oxlint": "^1.75.0",
     "vite": "^8.2.0"
   }

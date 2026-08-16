@@ -23,6 +23,19 @@ const stocks = [
 const rewardCycle = buildingTypes.flatMap((building) => Array(building.partsRequired).fill(building.type))
 const SKIP_CHALLENGE_LEVELS = 10
 const SKIP_CHALLENGE_QUESTIONS = 20
+const initialLearningProgress = {
+  correct: 0,
+  questionIndex: 0,
+  lessonCompleted: false,
+  activeLevel: 1,
+  unlockedLevel: 1,
+  streakDays: 1,
+  lastStudyDate: todayKey(),
+}
+
+function learningProgressFrom(game) {
+  return Object.fromEntries(Object.keys(initialLearningProgress).map((key) => [key, game[key]]))
+}
 
 function getPartReward(level) {
   const type = rewardCycle[(level - 1) % rewardCycle.length]
@@ -49,7 +62,9 @@ function daysBetween(from, to) {
 }
 
 const defaultGame = {
-  dataVersion: 3,
+  dataVersion: 4,
+  learningLanguage: 'english',
+  languageProgress: {},
   coins: 500,
   correct: 0,
   questionIndex: 0,
@@ -94,6 +109,8 @@ function normalizeGame(saved) {
     ...defaultGame,
     ...saved,
     dataVersion: defaultGame.dataVersion,
+    learningLanguage: saved.learningLanguage === 'japanese' ? 'japanese' : 'english',
+    languageProgress: saved.languageProgress ?? {},
     parts: saved.parts ?? {},
     portfolio: saved.portfolio ?? {},
     buildings: saved.buildings ?? [],
@@ -119,7 +136,7 @@ function App() {
   const [skipChallenge, setSkipChallenge] = useState({ status: 'idle', questionIndex: 0, correct: 0, targetLevel: null })
   const [quizQuestions, setQuizQuestions] = useState(() => {
     const saved = loadGame()
-    return createLevelQuiz(saved.activeLevel, 10)
+    return createLevelQuiz(saved.activeLevel, 10, saved.learningLanguage)
   })
   const [now, setNow] = useState(Date.now())
   const [toast, setToast] = useState('')
@@ -183,7 +200,7 @@ function App() {
       if (data?.game_state) {
         const restored = normalizeGame(data.game_state)
         setGame(restored)
-        setQuizQuestions(createLevelQuiz(restored.activeLevel, 10))
+        setQuizQuestions(createLevelQuiz(restored.activeLevel, 10, restored.learningLanguage))
         setSkipChallenge({ status: 'idle', questionIndex: 0, correct: 0, targetLevel: null })
         setSelected(null)
         setLastSynced(data.updated_at ? new Date(data.updated_at) : new Date())
@@ -279,6 +296,28 @@ function App() {
     setToast(message)
   }
 
+  function pronounceQuestion(question) {
+    if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') {
+      notify('這個瀏覽器目前不支援語音播放。')
+      return
+    }
+
+    const isJapanese = game.learningLanguage === 'japanese'
+    const utterance = new SpeechSynthesisUtterance(question.word)
+    utterance.lang = isJapanese ? 'ja-JP' : 'en-US'
+    utterance.rate = isJapanese ? 0.82 : 0.88
+    utterance.pitch = 1
+
+    const languagePrefix = isJapanese ? 'ja' : 'en'
+    const preferredVoice = window.speechSynthesis
+      .getVoices()
+      .find((voice) => voice.lang.toLowerCase().startsWith(languagePrefix))
+    if (preferredVoice) utterance.voice = preferredVoice
+
+    window.speechSynthesis.cancel()
+    window.speechSynthesis.speak(utterance)
+  }
+
   function answer(choice) {
     if (selected || game.lessonCompleted) return
     setSelected(choice)
@@ -354,7 +393,7 @@ function App() {
   function restartLesson() {
     setSkipChallenge({ status: 'idle', questionIndex: 0, correct: 0, targetLevel: null })
     setGame((value) => ({ ...value, correct: 0, questionIndex: 0, lessonCompleted: false }))
-    setQuizQuestions(createLevelQuiz(game.activeLevel, 10))
+    setQuizQuestions(createLevelQuiz(game.activeLevel, 10, game.learningLanguage))
     setSelected(null)
   }
 
@@ -366,7 +405,7 @@ function App() {
     }
     setSkipChallenge({ status: 'idle', questionIndex: 0, correct: 0, targetLevel: null })
     setGame((value) => ({ ...value, activeLevel: safeLevel, correct: 0, questionIndex: 0, lessonCompleted: false }))
-    setQuizQuestions(createLevelQuiz(safeLevel, 10))
+    setQuizQuestions(createLevelQuiz(safeLevel, 10, game.learningLanguage))
     setSelected(null)
   }
 
@@ -386,15 +425,34 @@ function App() {
     const targetLevel = Math.min(999, game.unlockedLevel + SKIP_CHALLENGE_LEVELS)
     setGame((value) => ({ ...value, correct: 0, questionIndex: 0, lessonCompleted: false }))
     setSkipChallenge({ status: 'active', questionIndex: 0, correct: 0, targetLevel })
-    setQuizQuestions(createLevelQuiz(targetLevel, SKIP_CHALLENGE_QUESTIONS))
+    setQuizQuestions(createLevelQuiz(targetLevel, SKIP_CHALLENGE_QUESTIONS, game.learningLanguage))
     setSelected(null)
   }
 
   function enterSkippedLevel() {
     const targetLevel = skipChallenge.targetLevel ?? game.activeLevel
     setSkipChallenge({ status: 'idle', questionIndex: 0, correct: 0, targetLevel: null })
-    setQuizQuestions(createLevelQuiz(targetLevel, 10))
+    setQuizQuestions(createLevelQuiz(targetLevel, 10, game.learningLanguage))
     setSelected(null)
+  }
+
+  function switchLearningLanguage(language) {
+    if (language === game.learningLanguage) return
+    const nextProgress = game.languageProgress?.[language] ?? initialLearningProgress
+    setGame((value) => ({
+      ...value,
+      ...nextProgress,
+      learningLanguage: language,
+      languageProgress: {
+        ...value.languageProgress,
+        [value.learningLanguage]: learningProgressFrom(value),
+      },
+    }))
+    setSkipChallenge({ status: 'idle', questionIndex: 0, correct: 0, targetLevel: null })
+    setQuizQuestions(createLevelQuiz(nextProgress.activeLevel, 10, language))
+    setSelected(null)
+    setPage('learn')
+    notify(language === 'japanese' ? '已切換到日文冒險。' : '已切換到英文冒險。')
   }
 
   function build(type) {
@@ -513,17 +571,21 @@ function App() {
       <header className="sticky top-0 z-30 border-b border-[#e4dfd2] bg-[#fffdf8]/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-2 sm:min-h-18 sm:flex-nowrap sm:gap-4 sm:px-8 sm:py-0">
           <button onClick={() => setPage('learn')} className="flex items-center gap-3 text-left">
-            <span className="grid size-10 place-items-center rounded-xl bg-emerald-700 text-xl font-black text-white shadow-sm">A</span>
+            <span className="grid size-10 place-items-center rounded-xl bg-emerald-700 text-xl font-black text-white shadow-sm">{game.learningLanguage === 'japanese' ? 'あ' : 'A'}</span>
             <span className="hidden sm:block"><b className="block font-serif text-xl leading-none text-emerald-950">Wordshire</b><small className="mt-1 block text-[9px] font-black uppercase tracking-[.2em] text-emerald-700">Learn · Build · Grow</small></span>
           </button>
 
           <nav className="order-3 flex w-full rounded-xl bg-slate-100 p-1 sm:order-none sm:w-auto" aria-label="主要頁面">
-            <button onClick={() => setPage('learn')} className={`nav-tab ${page === 'learn' ? 'nav-active' : ''}`}><span>📖</span><span className="hidden sm:inline">英文冒險</span></button>
+            <button onClick={() => setPage('learn')} className={`nav-tab ${page === 'learn' ? 'nav-active' : ''}`}><span>📖</span><span className="hidden sm:inline">{game.learningLanguage === 'japanese' ? '日文冒險' : '英文冒險'}</span></button>
             <button onClick={() => setPage('city')} className={`nav-tab ${page === 'city' ? 'nav-active' : ''}`}><span>🏘️</span><span className="hidden sm:inline">我的城市</span></button>
             <button onClick={() => setPage('stocks')} className={`nav-tab ${page === 'stocks' ? 'nav-active' : ''}`}><span>📈</span><span className="hidden sm:inline">模擬股市</span></button>
           </nav>
 
           <div className="flex min-w-0 items-center gap-2">
+            <div className="language-switch" aria-label="學習語言">
+              <button onClick={() => switchLearningLanguage('english')} className={game.learningLanguage === 'english' ? 'language-active' : ''} aria-pressed={game.learningLanguage === 'english'}>EN</button>
+              <button onClick={() => switchLearningLanguage('japanese')} className={game.learningLanguage === 'japanese' ? 'language-active' : ''} aria-pressed={game.learningLanguage === 'japanese'}>日本語</button>
+            </div>
             <button onClick={() => setAuthOpen(true)} className={`account-button ${authUser ? 'account-online' : ''}`} title={authUser?.email ?? '登入以同步進度'}>
               <span>{authUser ? '☁️' : '👤'}</span>
               <span className="hidden lg:inline">{authUser ? '已同步' : '登入'}</span>
@@ -552,6 +614,8 @@ function App() {
           onStartSkipChallenge={startSkipChallenge}
           onEnterSkippedLevel={enterSkippedLevel}
           onGoCity={() => setPage('city')}
+          language={game.learningLanguage}
+          onPronounce={pronounceQuestion}
         />
       ) : page === 'city' ? (
         <CityPage
@@ -562,6 +626,7 @@ function App() {
           onBuild={build}
           onCollect={collectIncome}
           onGoLearn={() => setPage('learn')}
+          language={game.learningLanguage}
         />
       ) : (
         <StockPage game={game} onTrade={tradeStock} onGoCity={() => setPage('city')} />
@@ -584,17 +649,18 @@ function App() {
   )
 }
 
-function LearnPage({ game, question, selected, isCorrect, progress, onAnswer, onNext, onRestart, onGoCity, onSelectLevel, onNextLevel, skipChallenge, onStartSkipChallenge, onEnterSkippedLevel }) {
+function LearnPage({ game, question, selected, isCorrect, progress, onAnswer, onNext, onRestart, onGoCity, onSelectLevel, onNextLevel, skipChallenge, onStartSkipChallenge, onEnterSkippedLevel, language, onPronounce }) {
   const firstVisibleLevel = Math.max(1, Math.min(991, game.activeLevel - 4))
   const visibleLevels = Array.from({ length: 9 }, (_, index) => firstVisibleLevel + index)
   const reward = getPartReward(game.activeLevel)
   const challengeActive = skipChallenge.status === 'active'
+  const isJapanese = language === 'japanese'
   return (
     <main className="mx-auto max-w-6xl px-4 py-6 sm:px-8 sm:py-8 lg:py-12">
       <div className="mb-8">
-        <div className="mb-2 text-xs font-black uppercase tracking-[.2em] text-emerald-700">English Adventure · Level {game.activeLevel} / 999</div>
-        <h1 className="font-serif text-4xl font-bold text-slate-900 sm:text-5xl">單字冒險之路</h1>
-        <p className="mt-3 text-slate-500">2,000 個名詞、999 個漸進關卡。每關固定 10 題，越後面的單字越進階。</p>
+        <div className="mb-2 text-xs font-black uppercase tracking-[.2em] text-emerald-700">{isJapanese ? 'Japanese Adventure' : 'English Adventure'} · Level {game.activeLevel} / 999</div>
+        <h1 className="font-serif text-4xl font-bold text-slate-900 sm:text-5xl">{isJapanese ? '日文單字冒險之路' : '英文單字冒險之路'}</h1>
+        <p className="mt-3 text-slate-500">{isJapanese ? '2,000 個 JLPT N5～N1 單字、999 個漸進關卡，附假名讀音。每關固定 10 題。' : '2,000 個名詞、999 個漸進關卡。每關固定 10 題，越後面的單字越進階。'}</p>
       </div>
 
       <section className="level-path mb-7">
@@ -652,7 +718,12 @@ function LearnPage({ game, question, selected, isCorrect, progress, onAnswer, on
                 <b className="text-sm text-emerald-700">{challengeActive ? skipChallenge.correct : game.correct}/{challengeActive ? SKIP_CHALLENGE_QUESTIONS : 10}</b>
               </div>
               <div className="mb-2 flex items-center justify-between text-xs font-extrabold uppercase tracking-[.16em] text-slate-400"><span>{challengeActive ? `跳級挑戰 · ${skipChallenge.questionIndex + 1}/${SKIP_CHALLENGE_QUESTIONS}` : `Level ${game.activeLevel} · ${game.questionIndex + 1}/10`}</span><span>難度 #{question.rank} · {question.level}</span></div>
-              <h2 className="mb-8 min-h-20 font-serif text-3xl font-bold leading-snug text-slate-900 sm:text-4xl">{question.prompt}</h2>
+              <div className="mb-8 flex min-h-20 items-start justify-between gap-4">
+                <h2 className="font-serif text-3xl font-bold leading-snug text-slate-900 sm:text-4xl">{question.prompt}</h2>
+                <button onClick={() => onPronounce(question)} className="pronunciation-button" aria-label={`播放 ${question.word} 的發音`} title="播放發音">
+                  <span aria-hidden="true">🔊</span><span className="hidden sm:inline">發音</span>
+                </button>
+              </div>
               <div className="grid gap-3">
                 {question.choices.map((choice, index) => {
                   const answerChoice = selected && choice === question.answer
@@ -692,7 +763,7 @@ function LearnPage({ game, question, selected, isCorrect, progress, onAnswer, on
   )
 }
 
-function CityPage({ game, incomePerHour, pendingExact, pendingCoins, onBuild, onCollect, onGoLearn }) {
+function CityPage({ game, incomePerHour, pendingExact, pendingCoins, onBuild, onCollect, onGoLearn, language }) {
   const ownedBuildings = buildingTypes.map((type) => {
     const instances = game.buildings.filter((building) => building.type === type.type)
     return { ...type, count: instances.length, totalIncome: instances.length * type.income }
@@ -725,7 +796,7 @@ function CityPage({ game, incomePerHour, pendingExact, pendingCoins, onBuild, on
                 <div className="text-right"><small className="block text-[10px] font-black uppercase text-emerald-600">總收益</small><b className="text-base text-emerald-800">🪙 +{building.totalIncome}/小時</b></div>
               </div>
             )) : (
-              <div className="grid min-h-72 place-items-center px-6 text-center"><div><span className="text-6xl">🏗️</span><h3 className="mt-4 font-serif text-2xl font-bold">城市還沒有建築</h3><p className="mt-2 text-sm text-slate-500">完成英文關卡，集滿配件後組裝第一間麵包店吧！</p></div></div>
+              <div className="grid min-h-72 place-items-center px-6 text-center"><div><span className="text-6xl">🏗️</span><h3 className="mt-4 font-serif text-2xl font-bold">城市還沒有建築</h3><p className="mt-2 text-sm text-slate-500">完成{language === 'japanese' ? '日文' : '英文'}關卡，集滿配件後組裝第一間麵包店吧！</p></div></div>
             )}
           </div>
           <div className="flex flex-col items-center justify-between gap-4 border-t border-slate-100 bg-[#fffdf8] px-6 py-5 sm:flex-row">
@@ -746,7 +817,7 @@ function CityPage({ game, incomePerHour, pendingExact, pendingCoins, onBuild, on
             ))}
           </div>
           <div className="mt-5 rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-800"><b>💡 建設循環</b><p className="mt-1 text-xs leading-relaxed text-emerald-700/75">答對 10 題拿配件 → 集滿後組裝建築 → 建築每小時產生金幣 → 到模擬股市投資。</p></div>
-          <button onClick={onGoLearn} className="mt-4 w-full rounded-xl border border-emerald-200 bg-white py-3 text-sm font-bold text-emerald-700 hover:bg-emerald-50">回英文冒險收集配件</button>
+          <button onClick={onGoLearn} className="mt-4 w-full rounded-xl border border-emerald-200 bg-white py-3 text-sm font-bold text-emerald-700 hover:bg-emerald-50">回{language === 'japanese' ? '日文' : '英文'}冒險收集配件</button>
         </aside>
       </div>
     </main>

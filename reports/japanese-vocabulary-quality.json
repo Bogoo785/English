@@ -1,0 +1,25 @@
+{
+  "generatedAt": "2026-08-16T05:08:19.889Z",
+  "sources": [
+    "https://raw.githubusercontent.com/evanclan/OpenJLPT/main/data/json/vocab",
+    "https://raw.githubusercontent.com/lxl66566/Japanese-Chinese-thesaurus/main/final.json"
+  ],
+  "candidates": 6427,
+  "outputRows": 2000,
+  "uniqueWords": 2000,
+  "uniqueMeanings": 2000,
+  "entriesWithReading": 2000,
+  "levels": {
+    "N5": 400,
+    "N4": 400,
+    "N3": 400,
+    "N2": 400,
+    "N1": 400
+  },
+  "checks": {
+    "simplifiedChineseConvertedToTraditional": true,
+    "duplicateWordsRemoved": true,
+    "duplicateAnswersRemoved": true,
+    "sensitiveDefinitionsRemoved": true
+  }
+}
