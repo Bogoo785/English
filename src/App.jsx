@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 import { createLevelQuiz } from './data/vocabulary'
 import AuthModal from './components/AuthModal'
+import AdventurePage from './components/AdventurePage'
+import { DEFAULT_ADVENTURE, normalizeAdventure } from './data/adventure'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 
 const buildingTypes = [
@@ -62,7 +64,7 @@ function daysBetween(from, to) {
 }
 
 const defaultGame = {
-  dataVersion: 4,
+  dataVersion: 5,
   learningLanguage: 'english',
   languageProgress: {},
   coins: 500,
@@ -80,6 +82,7 @@ const defaultGame = {
   marketLastTick: Math.floor(Date.now() / 10000),
   buildings: [],
   lastCollected: Date.now(),
+  adventure: DEFAULT_ADVENTURE,
 }
 
 function loadGame() {
@@ -95,6 +98,7 @@ function loadGame() {
         lessonCompleted: false,
         parts: saved.parts ?? {},
         portfolio: saved.portfolio ?? {},
+        adventure: normalizeAdventure(saved.adventure),
       }
     }
     return saved ? { ...defaultGame, ...saved } : defaultGame
@@ -114,6 +118,7 @@ function normalizeGame(saved) {
     parts: saved.parts ?? {},
     portfolio: saved.portfolio ?? {},
     buildings: saved.buildings ?? [],
+    adventure: normalizeAdventure(saved.adventure),
   }
 }
 
@@ -579,6 +584,7 @@ function App() {
             <button onClick={() => setPage('learn')} className={`nav-tab ${page === 'learn' ? 'nav-active' : ''}`}><span>📖</span><span className="hidden sm:inline">{game.learningLanguage === 'japanese' ? '日文冒險' : '英文冒險'}</span></button>
             <button onClick={() => setPage('city')} className={`nav-tab ${page === 'city' ? 'nav-active' : ''}`}><span>🏘️</span><span className="hidden sm:inline">我的城市</span></button>
             <button onClick={() => setPage('stocks')} className={`nav-tab ${page === 'stocks' ? 'nav-active' : ''}`}><span>📈</span><span className="hidden sm:inline">模擬股市</span></button>
+            <button onClick={() => setPage('adventure')} className={`nav-tab ${page === 'adventure' ? 'nav-active' : ''}`}><span>⚔️</span><span className="hidden sm:inline">迷霧邊境</span></button>
           </nav>
 
           <div className="flex min-w-0 items-center gap-2">
@@ -628,8 +634,10 @@ function App() {
           onGoLearn={() => setPage('learn')}
           language={game.learningLanguage}
         />
-      ) : (
+      ) : page === 'stocks' ? (
         <StockPage game={game} onTrade={tradeStock} onGoCity={() => setPage('city')} />
+      ) : (
+        <AdventurePage game={game} setGame={setGame} notify={notify} />
       )}
 
       {toast && <div className="fixed bottom-6 left-1/2 z-50 w-max max-w-[90vw] -translate-x-1/2 animate-pop rounded-full bg-slate-900 px-5 py-3 text-center text-sm font-bold text-white shadow-xl">{toast}</div>}
